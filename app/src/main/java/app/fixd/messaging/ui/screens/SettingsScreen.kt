@@ -46,18 +46,22 @@ fun SettingsScreen(onBack: () -> Unit) {
             Text("Keyboard", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = {
-                ctx.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                ctx.startActivity(intent)
             }) { Text("Enable Fixd keyboard") }
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = {
-                ctx.startActivity(Intent(Settings.ACTION_SPELL_CHECKER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }) { Text("Spell checker settings") }
+                val intent = Intent(Settings.ACTION_USER_DICTIONARY_SETTINGS)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                runCatching { ctx.startActivity(intent) }
+            }) { Text("User dictionary") }
             status?.let {
                 Spacer(Modifier.height(16.dp))
                 Text(it)
             }
             Spacer(Modifier.weight(1f))
-            Text("Fixd Messaging \u2022 fixd.fun", style = MaterialTheme.typography.labelSmall)
+            Text("Fixd Messaging • fixd.fun", style = MaterialTheme.typography.labelSmall)
         }
     }
 }
