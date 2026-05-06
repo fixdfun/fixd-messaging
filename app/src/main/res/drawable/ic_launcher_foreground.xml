@@ -1,11 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <!-- Stylized chat bubble + spark, brand-aligned with the Fixd wizard mark. -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M30,34 H78 A8,8 0 0 1 86,42 V66 A8,8 0 0 1 78,74 H56 L46,84 V74 H30 A8,8 0 0 1 22,66 V42 A8,8 0 0 1 30,34 Z"/>
-    <path
-        android:fillColor="#FFFFD768"
-        android:pathData="M54,46 L57,54 L65,55 L59,60 L61,68 L54,64 L47,68 L49,60 L43,55 L51,54 Z"/>
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M78,30H30c-3.3,0 -6,2.7 -6,6v36c0,3.3 2.7,6 6,6h6v12l12,-12h30c3.3,0 6,-2.7 6,-6V36C84,32.7 81.3,30 78,30z"/>
+    <path android:fillColor="#FFD768"
+        android:pathData="M58,52l4,-10l4,10l10,4l-10,4l-4,10l-4,-10l-10,-4z"/>
 </vector>

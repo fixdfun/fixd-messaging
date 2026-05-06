@@ -1,46 +1,31 @@
 package app.fixd.messaging.data
 
-import android.content.Context
-import android.provider.Telephony
-
 data class Conversation(
     val threadId: Long,
     val address: String,
+    val displayName: String?,
     val snippet: String,
-    val date: Long
+    val date: Long,
+    val unreadCount: Int,
+    val messageCount: Int,
+    val hasMms: Boolean
 )
 
 data class Message(
     val id: Long,
     val threadId: Long,
-    val address: String,
+    val address: String?,
     val body: String,
     val date: Long,
-    val incoming: Boolean
+    val isIncoming: Boolean,
+    val isMms: Boolean,
+    val read: Boolean,
+    val attachments: List<Attachment> = emptyList()
 )
 
-object ConversationsRepository {
-    fun load(ctx: Context): List<Conversation> {
-        val out = mutableListOf<Conversation>()
-        val cr = ctx.contentResolver
-        val proj = arrayOf(
-            Telephony.Threads._ID,
-            Telephony.Threads.SNIPPET,
-            Telephony.Threads.DATE,
-            Telephony.Threads.RECIPIENT_IDS
-        )
-        cr.query(Telephony.Threads.CONTENT_URI, proj, null, null, "${Telephony.Threads.DATE} DESC")?.use { c ->
-            while (c.moveToNext()) {
-                out.add(
-                    Conversation(
-                        threadId = c.getLong(0),
-                        address = c.getString(3) ?: "",
-                        snippet = c.getString(1) ?: "",
-                        date = c.getLong(2)
-                    )
-                )
-            }
-        }
-        return out
-    }
-}
+data class Attachment(
+    val partId: Long,
+    val contentType: String,
+    val filename: String?,
+    val text: String?
+)

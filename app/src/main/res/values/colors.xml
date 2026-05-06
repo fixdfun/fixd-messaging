@@ -1,8 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="fixd_blue">#3F3CFF</color>
-    <color name="fixd_indigo">#5B54FF</color>
-    <color name="fixd_purple">#7C3AED</color>
-    <color name="fixd_violet">#9333EA</color>
+    <color name="fixd_indigo">#3F3CFF</color>
+    <color name="fixd_indigo_light">#5B54FF</color>
+    <color name="fixd_violet">#7C3AED</color>
+    <color name="fixd_magenta">#9333EA</color>
     <color name="fixd_gold">#FFD768</color>
     <color name="fixd_ink">#1A1A2E</color>
+    <color name="fixd_ink_light">#2A2A44</color>
+    <color name="white">#FFFFFFFF</color>
 </resources>
