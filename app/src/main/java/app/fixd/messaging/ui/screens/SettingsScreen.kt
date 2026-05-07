@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -138,7 +139,50 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(16.dp))
                 Text(it)
             }
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(32.dp))        // FIXD_CLOUD_BACKUP_V1
+        Spacer(Modifier.height(16.dp))
+        Text("Cloud backup", style = MaterialTheme.typography.titleMedium)
+        Text("Encrypted with your passphrase before upload (zero-knowledge).", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(4.dp))
+        var showCloudDialog by remember { mutableStateOf(false) }
+        var cloudPass by remember { mutableStateOf("") }
+        var cloudEmail by remember { mutableStateOf("") }
+        var cloudBusy by remember { mutableStateOf(false) }
+        var cloudMsg by remember { mutableStateOf<String?>(null) }
+        OutlinedButton(onClick = { showCloudDialog = true }) { Text("Backup to Fixd Cloud") }
+        cloudMsg?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        if (showCloudDialog) {
+            AlertDialog(
+                onDismissRequest = { if (!cloudBusy) showCloudDialog = false },
+                title = { Text("Backup to Fixd Cloud") },
+                text = {
+                    Column {
+                        Text("Your messages are encrypted on this device with AES-256-GCM before upload over HTTPS. Your passphrase never leaves your device.")
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = cloudEmail, onValueChange = { cloudEmail = it }, label = { Text("Account email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = cloudPass, onValueChange = { cloudPass = it }, label = { Text("Encryption passphrase (≥8 chars)") }, singleLine = true, modifier = Modifier.fillMaxWidth(), visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = !cloudBusy && cloudPass.length >= 8 && cloudEmail.contains("@"), onClick = {
+                        cloudBusy = true; cloudMsg = "Encrypting and uploading..."
+                        val pass = cloudPass.toCharArray(); val email = cloudEmail
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            val plaintext = app.fixd.messaging.backup.BackupManager.exportToString(ctx).toByteArray(Charsets.UTF_8)
+                            val r = app.fixd.messaging.backup.CloudBackupManager.upload(ctx, email, pass, plaintext)
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                cloudBusy = false; cloudMsg = r.message; if (r.ok) showCloudDialog = false
+                                cloudPass = ""
+                            }
+                        }
+                    }) { Text(if (cloudBusy) "Uploading..." else "Upload") }
+                },
+                dismissButton = { TextButton(enabled = !cloudBusy, onClick = { showCloudDialog = false }) { Text("Cancel") } }
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+
             Text("Fixd Messaging  fixd.fun", style = MaterialTheme.typography.labelSmall)
         }
     }
