@@ -17,9 +17,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import app.fixd.messaging.theme.FixdTheme
 import app.fixd.messaging.ui.FixdNavHost
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         setContent {
             FixdTheme {
