@@ -169,7 +169,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         cloudBusy = true; cloudMsg = "Encrypting and uploading..."
                         val pass = cloudPass.toCharArray(); val email = cloudEmail
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            val plaintext = app.fixd.messaging.backup.BackupManager.exportToString(ctx).toByteArray(Charsets.UTF_8)
+                            val plaintext = app.fixd.messaging.backup.BackupManager(ctx).buildJsonString().toByteArray(Charsets.UTF_8)
                             val r = app.fixd.messaging.backup.CloudBackupManager.upload(ctx, email, pass, plaintext)
                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                 cloudBusy = false; cloudMsg = r.message; if (r.ok) showCloudDialog = false

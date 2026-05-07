@@ -39,6 +39,13 @@ class BackupManager(private val context: Context) {
         rows.size
     }
 
+    /** FIXD_CLOUD_BACKUP_V1: synchronous JSON snapshot for cloud backup encryption. */
+    fun buildJsonString(): String {
+        val rows = readAllSms()
+        val payload = SmsBackupFile(rows = rows)
+        return Json { prettyPrint = false }.encodeToString(SmsBackupFile.serializer(), payload)
+    }
+
     private fun readAllSms(): List<SmsBackupRow> {
         val out = mutableListOf<SmsBackupRow>()
         val proj = arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE,
