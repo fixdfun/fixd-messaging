@@ -1,115 +1,152 @@
 package app.fixd.messaging.keyboard
 
 import android.inputmethodservice.InputMethodService
-import android.text.InputType
-import android.view.KeyEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.view.textservice.SentenceSuggestionsInfo
+import android.view.textservice.SpellCheckerSession
+import android.view.textservice.SuggestionsInfo
+import android.view.textservice.TextInfo
+import android.view.textservice.TextServicesManager
 import android.widget.Button
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.TextView
 
-/**
- * Simple software keyboard for Fixd Messaging.
- * Provides letters, shift, symbols, emoji shortcuts, backspace and enter.
- */
-class FixdKeyboardService : InputMethodService() {
+class FixdKeyboardService : InputMethodService(), SpellCheckerSession.SpellCheckerSessionListener {
 
     private var shift = false
     private var symbolMode = false
     private var rootContainer: LinearLayout? = null
+    private var suggestionStrip: LinearLayout? = null
+    private var spellChecker: SpellCheckerSession? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        val tsm = getSystemService(TEXT_SERVICES_MANAGER_SERVICE) as? TextServicesManager
+        spellChecker = tsm?.newSpellCheckerSession(null, null, this, true)
+    }
 
     override fun onCreateInputView(): View {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(8, 8, 8, 8)
         }
+        val strip = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(8, 4, 8, 4)
+        }
+        suggestionStrip = strip
+        container.addView(HorizontalScrollView(this).apply { addView(strip) })
+        container.addView(buildKeyboardView())
         rootContainer = container
-        rebuildKeys()
         return container
     }
 
-    private fun rebuildKeys() {
-        val container = rootContainer ?: return
-        container.removeAllViews()
+    private fun buildKeyboardView(): LinearLayout {
+        val parent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val rows = if (symbolMode) symbolRows else letterRows
         rows.forEach { row ->
-            val rowView = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            }
+            val rowLayout = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             row.forEach { key ->
-                rowView.addView(makeKey(key))
+                val btn = Button(this).apply {
+                    text = if (shift && !symbolMode) key.uppercase() else key
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    setOnClickListener { commit(if (shift && !symbolMode) key.uppercase() else key) }
+                }
+                rowLayout.addView(btn)
             }
-            container.addView(rowView)
+            parent.addView(rowLayout)
         }
-        // Bottom utility row
-        val bottom = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-        bottom.addView(makeUtility(if (symbolMode) "ABC" else "123") {
-            symbolMode = !symbolMode; rebuildKeys()
-        })
-        bottom.addView(makeUtility(",") { commit(",") })
-        bottom.addView(makeUtility("space", weight = 4f) { commit(" ") })
-        bottom.addView(makeUtility(".") { commit(".") })
-        bottom.addView(makeUtility("\u232B") {
-            currentInputConnection?.deleteSurroundingText(1, 0)
-        })
-        bottom.addView(makeUtility("\u23CE") {
-            val ic = currentInputConnection ?: return@makeUtility
-            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
-            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
-        })
-        container.addView(bottom)
+        val util = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        addUtility(util, "\u21E7") { shift = !shift; refresh() }
+        addUtility(util, if (symbolMode) "abc" else "123") { symbolMode = !symbolMode; refresh() }
+        addUtility(util, "\uD83D\uDE00") { commit("\uD83D\uDE00") }
+        addUtility(util, "space") { commit(" ") }
+        addUtility(util, "\u232B") { currentInputConnection?.deleteSurroundingText(1, 0); refreshSuggestions() }
+        addUtility(util, "\u23CE") { sendDefaultEditorAction(true) }
+        parent.addView(util)
+        return parent
     }
 
-    private fun makeKey(label: String): View {
-        return Button(this).apply {
-            text = if (shift) label.uppercase() else label
-            isAllCaps = false
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            setOnClickListener {
-                if (label == "\u21E7") { shift = !shift; rebuildKeys() }
-                else commit(if (shift) label.uppercase() else label)
-            }
-        }
-    }
-
-    private fun makeUtility(label: String, weight: Float = 1.5f, onClick: () -> Unit): View {
-        return Button(this).apply {
+    private fun addUtility(parent: LinearLayout, label: String, action: () -> Unit) {
+        parent.addView(Button(this).apply {
             text = label
-            isAllCaps = false
-            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight)
-            setOnClickListener { onClick() }
-        }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener { action() }
+        })
     }
 
     private fun commit(text: String) {
         currentInputConnection?.commitText(text, 1)
-        if (shift) { shift = false; rebuildKeys() }
+        if (shift && !symbolMode) { shift = false; refresh() }
+        refreshSuggestions()
     }
 
-    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
-        super.onStartInput(attribute, restarting)
-        symbolMode = (attribute?.inputType?.and(InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_NUMBER)
-        shift = false
-        rebuildKeys()
+    private fun refresh() { setInputView(onCreateInputView()) }
+
+    private fun refreshSuggestions() {
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(64, 0)?.toString() ?: return
+        val word = before.takeLastWhile { !it.isWhitespace() }
+        if (word.length < 2) {
+            suggestionStrip?.removeAllViews()
+            return
+        }
+        spellChecker?.getSentenceSuggestions(arrayOf(TextInfo(word)), 5)
     }
 
-    companion object {
-        val letterRows = listOf(
-            listOf("q","w","e","r","t","y","u","i","o","p"),
-            listOf("a","s","d","f","g","h","j","k","l"),
-            listOf("\u21E7","z","x","c","v","b","n","m")
-        )
-        val symbolRows = listOf(
-            listOf("1","2","3","4","5","6","7","8","9","0"),
-            listOf("@","#","$","%","&","*","-","+","(",")"),
-            listOf("!","\"","'",":",";","/","?","\u263A","\u2764")
-        )
+    override fun onGetSuggestions(results: Array<out SuggestionsInfo>?) {}
+
+    override fun onGetSentenceSuggestions(results: Array<out SentenceSuggestionsInfo>?) {
+        val strip = suggestionStrip ?: return
+        strip.post {
+            strip.removeAllViews()
+            val sentence = results?.firstOrNull() ?: return@post
+            for (i in 0 until sentence.suggestionsCount) {
+                val info = sentence.getSuggestionsInfoAt(i)
+                for (j in 0 until info.suggestionsCount) {
+                    val suggestion = info.getSuggestionAt(j) ?: continue
+                    val tv = TextView(this).apply {
+                        text = suggestion
+                        setPadding(20, 8, 20, 8)
+                        setOnClickListener { applySuggestion(suggestion) }
+                    }
+                    strip.addView(tv)
+                }
+            }
+        }
     }
+
+    private fun applySuggestion(replacement: String) {
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(64, 0)?.toString() ?: return
+        val word = before.takeLastWhile { !it.isWhitespace() }
+        if (word.isEmpty()) return
+        ic.deleteSurroundingText(word.length, 0)
+        ic.commitText("$replacement ", 1)
+        suggestionStrip?.removeAllViews()
+    }
+
+    override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        suggestionStrip?.removeAllViews()
+    }
+
+    override fun onDestroy() {
+        spellChecker?.close()
+        super.onDestroy()
+    }
+
+    private val letterRows = listOf(
+        listOf("q","w","e","r","t","y","u","i","o","p"),
+        listOf("a","s","d","f","g","h","j","k","l"),
+        listOf("z","x","c","v","b","n","m"),
+    )
+
+    private val symbolRows = listOf(
+        listOf("1","2","3","4","5","6","7","8","9","0"),
+        listOf("@","#","$","%","&","*","-","+","(",")"),
+        listOf("!","\\\"","'",":",";","/","?"),
+    )
 }

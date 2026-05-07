@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 
 /** Reads SMS/MMS data from the system Telephony provider. Requires READ_SMS. */
 class MessageRepository(private val context: Context) {
+    private val contactResolver = ContactResolver(context)
 
     suspend fun loadConversations(limit: Int = 200): List<Conversation> = withContext(Dispatchers.IO) {
         val out = mutableListOf<Conversation>()
@@ -33,7 +34,7 @@ class MessageRepository(private val context: Context) {
                     out.add(Conversation(
                         threadId = tid,
                         address = address,
-                        displayName = null,
+                        displayName = contactResolver.displayName(address),
                         snippet = snippet,
                         date = date,
                         unreadCount = if (read) 0 else 1,
