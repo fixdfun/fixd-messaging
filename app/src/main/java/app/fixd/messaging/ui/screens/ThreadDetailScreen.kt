@@ -195,7 +195,7 @@ private fun AttachmentView(att: Attachment, fg: androidx.compose.ui.graphics.Col
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 )
                 androidx.compose.material3.Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Default.PlayArrow,
+                    imageVector = androidx.compose.material.icons.filled.PlayArrow,
                     contentDescription = "video",
                     tint = androidx.compose.ui.graphics.Color.White,
                     modifier = androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.Center).size(48.dp),
