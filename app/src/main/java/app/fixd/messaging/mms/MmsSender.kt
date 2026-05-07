@@ -62,18 +62,23 @@ object MmsSender {
 
     private fun ensureSmilPart(parts: List<MmsPart>): List<MmsPart> {
         if (parts.any { it.contentType == "application/smil" }) return parts
-        val region = parts.mapIndexedNotNull { i, p ->
+        val sb = StringBuilder()
+        sb.append("<smil><head><layout>")
+        sb.append("<root-layout/>")
+        sb.append("<region id=\"Image\" top=\"0\" left=\"0\" height=\"60%\" width=\"100%\"/>")
+        sb.append("<region id=\"Text\" top=\"60%\" left=\"0\" height=\"40%\" width=\"100%\"/>")
+        sb.append("</layout></head><body>")
+        parts.forEachIndexed { i, p ->
             when {
-                p.contentType.startsWith("image/") -> "<par dur="5s"><img src="part${'$'}i" region="Image"/></par>"
-                p.contentType.startsWith("text/") -> "<par dur="5s"><text src="part${'$'}i" region="Text"/></par>"
-                else -> null
+                p.contentType.startsWith("image/") ->
+                    sb.append("<par dur=\"5s\"><img src=\"part").append(i).append("\" region=\"Image\"/></par>")
+                p.contentType.startsWith("text/") ->
+                    sb.append("<par dur=\"5s\"><text src=\"part").append(i).append("\" region=\"Text\"/></par>")
+                else -> { /* skip for SMIL */ }
             }
-        }.joinToString("")
-        val smil = "<smil><head><layout>" +
-            "<root-layout/>" +
-            "<region id="Image" top="0" left="0" height="60%" width="100%"/>" +
-            "<region id="Text" top="60%" left="0" height="40%" width="100%"/>" +
-            "</layout></head><body>${'$'}region</body></smil>"
+        }
+        sb.append("</body></smil>")
+        val smil = sb.toString()
         return listOf(MmsPart("application/smil", smil.toByteArray(Charsets.UTF_8), "smil.xml")) + parts
     }
 
