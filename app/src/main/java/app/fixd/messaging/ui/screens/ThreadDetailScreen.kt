@@ -14,6 +14,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -115,7 +125,10 @@ fun ThreadDetailScreen(threadId: Long, onBack: () -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun MessageBubble(msg: Message) {
+    val ctx = LocalContext.current
+    var menuOpen by remember { mutableStateOf(false) }
     val incoming = msg.isIncoming
     val bg = if (incoming) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary
     val fg = if (incoming) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
@@ -125,6 +138,7 @@ private fun MessageBubble(msg: Message) {
     ) {
         Column(
             modifier = Modifier
+                .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
                 .widthIn(max = 280.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .background(bg)
@@ -134,6 +148,20 @@ private fun MessageBubble(msg: Message) {
                 msg.attachments.forEach { att -> AttachmentView(att, fg) }
             }
             if (msg.body.isNotEmpty()) Text(msg.body, color = fg)
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("Copy") }, onClick = {
+                    val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("Fixd message", msg.body))
+                    Toast.makeText(ctx, "Copied", Toast.LENGTH_SHORT).show()
+                    menuOpen = false
+                })
+                DropdownMenuItem(text = { Text("Forward") }, onClick = {
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, msg.body) }
+                    ctx.startActivity(android.content.Intent.createChooser(send, "Forward"))
+                    menuOpen = false
+                })
+                DropdownMenuItem(text = { Text("Delete") }, onClick = { Toast.makeText(ctx, "Delete coming soon", Toast.LENGTH_SHORT).show(); menuOpen = false })
+            }
             Text(
                 DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(msg.date)),
                 style = MaterialTheme.typography.labelSmall,

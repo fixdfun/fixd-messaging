@@ -9,6 +9,21 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -35,6 +50,8 @@ fun ConversationListScreen(
     val repo = remember { MessageRepository(ctx) }
     var conversations by remember { mutableStateOf<List<Conversation>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
 
     LaunchedEffect(isDefaultSmsApp) {
         if (isDefaultSmsApp) {
@@ -45,10 +62,38 @@ fun ConversationListScreen(
         }
     }
 
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Text("Fixd Messaging", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
+                HorizontalDivider()
+                NavigationDrawerItem(
+                    label = { Text("Conversations") },
+                    selected = true,
+                    onClick = { drawerScope.launch { drawerState.close() } },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                NavigationDrawerItem(
+                    label = { Text("Settings") },
+                    selected = false,
+                    onClick = { drawerScope.launch { drawerState.close() }; onSettings() },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                HorizontalDivider()
+                Text("Cloud backup is in Settings", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Fixd Messaging", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, "Menu", tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
@@ -84,6 +129,7 @@ fun ConversationListScreen(
                 }
             }
         }
+    }
     }
 }
 
