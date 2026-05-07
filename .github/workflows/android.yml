@@ -44,6 +44,20 @@ jobs:
         run: gradle wrapper --gradle-version 8.10.2 --distribution-type bin --no-daemon
 
 
+      - name: Generate release keystore (or restore from secret)
+        run: |
+          if [ -n "${{ secrets.FIXD_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.FIXD_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          else
+            keytool -genkeypair -v -keystore release.keystore \
+              -alias fixd -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass fixdmessaging -keypass fixdmessaging \
+              -dname "CN=Fixd Messaging, OU=Fixd, O=Fixd.fun, L=City, S=State, C=US"
+          fi
+        env:
+          FIXD_KEYSTORE_PASSWORD: ${{ secrets.FIXD_KEYSTORE_PASSWORD || 'fixdmessaging' }}
+          FIXD_KEY_PASSWORD: ${{ secrets.FIXD_KEY_PASSWORD || 'fixdmessaging' }}
+
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
@@ -70,3 +84,30 @@ jobs:
             app/build/outputs/logs
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Build release APK & AAB
+        env:
+          FIXD_KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
+          FIXD_KEYSTORE_PASSWORD: ${{ secrets.FIXD_KEYSTORE_PASSWORD || 'fixdmessaging' }}
+          FIXD_KEY_ALIAS: fixd
+          FIXD_KEY_PASSWORD: ${{ secrets.FIXD_KEY_PASSWORD || 'fixdmessaging' }}
+        run: ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace
+
+      - name: Upload release APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixd-messaging-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload release AAB
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixd-messaging-release-aab
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 30
+

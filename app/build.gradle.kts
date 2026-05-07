@@ -19,10 +19,20 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("FIXD_KEYSTORE_PATH") ?: "${rootProject.projectDir}/release.keystore")
+            storePassword = System.getenv("FIXD_KEYSTORE_PASSWORD") ?: "fixdmessaging"
+            keyAlias = System.getenv("FIXD_KEY_ALIAS") ?: "fixd"
+            keyPassword = System.getenv("FIXD_KEY_PASSWORD") ?: "fixdmessaging"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
