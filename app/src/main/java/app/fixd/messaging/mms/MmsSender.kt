@@ -11,23 +11,31 @@ import androidx.core.content.FileProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.ArrayDeque
 import java.util.UUID
+import kotlin.text.Charsets
 
-/** Single attachment payload for an outgoing MMS. */
 data class MmsPart(val contentType: String, val data: ByteArray, val name: String? = null)
 
 /**
- * Encodes a minimal m-send-req PDU with the supplied parts, writes it to app
+ * Encodes an m-send-req PDU with the supplied parts, writes it to the app
  * cache, exposes it via FileProvider and asks SmsManager to perform the
- * carrier handshake. Adequate for single-recipient picture messages.
+ * carrier handshake.  Supports single- and multi-recipient picture messages
+ * and auto-prepends a SMIL layout part when absent.
  */
 object MmsSender {
 
     private const val TAG = "MmsSender"
 
-    fun send(ctx: Context, to: String, subject: String?, parts: List<MmsPart>): Boolean {
+    /** Backwards-compatible single-recipient entry point. */
+    fun send(ctx: Context, to: String, subject: String?, parts: List<MmsPart>): Boolean =
+        send(ctx, listOf(to), subject, parts)
+
+    fun send(ctx: Context, recipients: List<String>, subject: String?, parts: List<MmsPart>): Boolean {
+        if (recipients.isEmpty()) return false
+        val finalParts = ensureSmilPart(parts)
         return try {
-            val pdu = buildSendReq(to, subject, parts)
+            val pdu = buildSendReq(recipients, subject, finalParts)
             val pduFile = File(ctx.cacheDir, "mms-${'$'}{UUID.randomUUID()}.dat")
             FileOutputStream(pduFile).use { it.write(pdu) }
             val contentUri = FileProvider.getUriForFile(
@@ -44,12 +52,29 @@ object MmsSender {
             SmsManager.getDefault().sendMultimediaMessage(
                 ctx, contentUri, null, null, null,
             )
-            insertOutboxRecord(ctx, to, subject, parts)
+            insertOutboxRecord(ctx, recipients.joinToString(";"), subject, finalParts)
             true
         } catch (t: Throwable) {
             Log.w(TAG, "send failed", t)
             false
         }
+    }
+
+    private fun ensureSmilPart(parts: List<MmsPart>): List<MmsPart> {
+        if (parts.any { it.contentType == "application/smil" }) return parts
+        val region = parts.mapIndexedNotNull { i, p ->
+            when {
+                p.contentType.startsWith("image/") -> "<par dur="5s"><img src="part${'$'}i" region="Image"/></par>"
+                p.contentType.startsWith("text/") -> "<par dur="5s"><text src="part${'$'}i" region="Text"/></par>"
+                else -> null
+            }
+        }.joinToString("")
+        val smil = "<smil><head><layout>" +
+            "<root-layout/>" +
+            "<region id="Image" top="0" left="0" height="60%" width="100%"/>" +
+            "<region id="Text" top="60%" left="0" height="40%" width="100%"/>" +
+            "</layout></head><body>${'$'}region</body></smil>"
+        return listOf(MmsPart("application/smil", smil.toByteArray(Charsets.UTF_8), "smil.xml")) + parts
     }
 
     private fun insertOutboxRecord(ctx: Context, to: String, subject: String?, parts: List<MmsPart>) {
@@ -59,55 +84,57 @@ object MmsSender {
             put(Telephony.Mms.MESSAGE_BOX, Telephony.Mms.MESSAGE_BOX_OUTBOX)
             put(Telephony.Mms.READ, 1)
             put(Telephony.Mms.SEEN, 1)
+            put(Telephony.Mms.DATE, System.currentTimeMillis() / 1000)
             if (!subject.isNullOrEmpty()) put(Telephony.Mms.SUBJECT, subject)
         }
-        val mmsUri = resolver.insert(Telephony.Mms.Outbox.CONTENT_URI, values) ?: return
+        val mmsUri = resolver.insert(Telephony.Mms.CONTENT_URI, values) ?: return
         val mmsId = mmsUri.lastPathSegment ?: return
-        resolver.insert(
-            Uri.parse("content://mms/${'$'}mmsId/addr"),
-            ContentValues().apply {
-                put("address", to)
-                put("type", 151) // To
+        for (recipient in to.split(";").filter { it.isNotBlank() }) {
+            val addrUri = Uri.parse("content://mms/${'$'}mmsId/addr")
+            resolver.insert(addrUri, ContentValues().apply {
+                put("address", recipient)
+                put("type", 151) // PduHeaders.TO
                 put("charset", 106)
-            },
-        )
-        parts.forEach { p ->
-            resolver.insert(
-                Uri.parse("content://mms/${'$'}mmsId/part"),
-                ContentValues().apply {
-                    put("mid", mmsId)
-                    put("ct", p.contentType)
-                    if (p.name != null) put("cl", p.name)
-                    if (p.contentType.startsWith("text/")) {
-                        put("chset", 106)
-                        put("text", String(p.data, Charsets.UTF_8))
-                    }
-                },
-            )
+            })
+        }
+        val partUri = Uri.parse("content://mms/${'$'}mmsId/part")
+        for (p in parts) {
+            resolver.insert(partUri, ContentValues().apply {
+                put("mid", mmsId)
+                put("ct", p.contentType)
+                if (p.name != null) put("cl", p.name)
+                if (p.contentType.startsWith("text/")) {
+                    put("chset", 106)
+                    put("text", String(p.data, Charsets.UTF_8))
+                }
+            })
         }
     }
 
-    private fun buildSendReq(to: String, subject: String?, parts: List<MmsPart>): ByteArray {
+    private fun buildSendReq(recipients: List<String>, subject: String?, parts: List<MmsPart>): ByteArray {
         val out = ByteArrayOutputStream()
-        out.writeShortField(0x8C, 0x80)                                   // X-Mms-Message-Type m-send-req
+        out.writeShortField(0x8C, 0x80)                              // X-Mms-Message-Type m-send-req
         out.writeStringField(0x98, "T${'$'}{System.currentTimeMillis().toString(16)}") // Transaction-ID
-        out.writeShortField(0x8D, 0x92)                                   // X-Mms-Version 1.2
+        out.writeShortField(0x8D, 0x92)                              // X-Mms-Version 1.2
         out.write(0xA2); out.write(0x02); out.write(0x81); out.write(0x81) // From: insert-address-token
-        out.writeStringField(0x97, "${'$'}to/TYPE=PLMN")                       // To
+        for (r in recipients) {
+            out.writeStringField(0x97, "${'$'}r/TYPE=PLMN")          // To (repeatable)
+        }
         if (!subject.isNullOrEmpty()) out.writeStringField(0x96, subject)
-        out.write(0x84); out.write(0xA3)                                  // Content-Type multipart.related
+        out.write(0x84); out.write(0xA3)                             // Content-Type multipart.related
         out.writeUintvar(parts.size.toLong())
         parts.forEach { out.write(encodePart(it)) }
         return out.toByteArray()
     }
 
     private fun encodePart(p: MmsPart): ByteArray {
-        val headers = ByteArrayOutputStream()
-        headers.write(p.contentType.toByteArray(Charsets.US_ASCII))
-        headers.write(0)
-        if (p.name != null) headers.writeStringField(0x85, p.name)
-        val headerBytes = headers.toByteArray()
         val out = ByteArrayOutputStream()
+        val headers = ByteArrayOutputStream()
+        headers.write(0x8E); headers.write(p.contentType.toByteArray(Charsets.UTF_8)); headers.write(0)
+        if (p.name != null) {
+            headers.write(0x85); headers.write(p.name.toByteArray(Charsets.UTF_8)); headers.write(0)
+        }
+        val headerBytes = headers.toByteArray()
         out.writeUintvar(headerBytes.size.toLong())
         out.writeUintvar(p.data.size.toLong())
         out.write(headerBytes)

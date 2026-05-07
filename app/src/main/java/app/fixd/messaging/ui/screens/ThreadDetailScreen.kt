@@ -1,4 +1,13 @@
 package app.fixd.messaging.ui.screens
+import app.fixd.messaging.data.Attachment
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
+import android.net.Uri
+import android.graphics.BitmapFactory
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -119,12 +128,46 @@ private fun MessageBubble(msg: Message) {
                 .background(bg)
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            Text(msg.body, color = fg)
+            if (msg.attachments.isNotEmpty()) {
+                msg.attachments.forEach { att -> AttachmentView(att, fg) }
+            }
+            if (msg.body.isNotEmpty()) Text(msg.body, color = fg)
             Text(
                 DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(msg.date)),
                 style = MaterialTheme.typography.labelSmall,
                 color = fg.copy(alpha = 0.7f)
             )
         }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun AttachmentView(att: Attachment, fg: androidx.compose.ui.graphics.Color) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val isImage = att.contentType.startsWith("image/")
+    if (isImage) {
+        val bmp = androidx.compose.runtime.remember(att.partId) {
+            runCatching {
+                ctx.contentResolver.openInputStream(android.net.Uri.parse("content://mms/part/${att.partId}"))?.use {
+                    android.graphics.BitmapFactory.decodeStream(it)?.asImageBitmap()
+                }
+            }.getOrNull()
+        }
+        if (bmp != null) {
+            androidx.compose.foundation.Image(
+                bitmap = bmp,
+                contentDescription = att.filename,
+                modifier = androidx.compose.ui.Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 220.dp),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            )
+        } else {
+            androidx.compose.material3.Text("[image]", color = fg)
+        }
+    } else if (!att.text.isNullOrEmpty()) {
+        androidx.compose.material3.Text(att.text!!, color = fg)
+    } else {
+        androidx.compose.material3.Text("[" + (att.filename ?: att.contentType) + "]", color = fg)
     }
 }

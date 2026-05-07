@@ -1,18 +1,28 @@
 package app.fixd.messaging.ui.screens
 
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.fixd.messaging.mms.MmsPart
@@ -54,33 +64,28 @@ fun ComposeScreen(onBack: () -> Unit) {
                 title = { Text("New message") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                val t = to.trim()
+                val recipients = to.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
                 val b = body
-                if (t.isBlank() || (b.isBlank() && attachments.isEmpty())) {
-                    status = "Recipient and message or attachment required"
+                if (recipients.isEmpty() || (b.isBlank() && attachments.isEmpty())) {
+                    status = "Enter recipient and message"
                     return@FloatingActionButton
                 }
                 scope.launch {
-                    val ok = if (attachments.isEmpty()) {
-                        SmsSender.send(ctx, t, b) >= 0
+                    val ok = if (attachments.isEmpty() && recipients.size == 1) {
+                        SmsSender.send(ctx, recipients[0], b) >= 0
                     } else {
                         val parts = buildList {
                             if (b.isNotBlank()) add(MmsPart("text/plain", b.toByteArray(Charsets.UTF_8), "text.txt"))
                             attachments.forEach { add(MmsPart(it.mime, it.bytes, it.name)) }
                         }
-                        MmsSender.send(ctx, t, null, parts)
+                        MmsSender.send(ctx, recipients, null, parts)
                     }
                     status = if (ok) "Sent" else "Send failed"
                     if (ok) onBack()
@@ -95,26 +100,23 @@ fun ComposeScreen(onBack: () -> Unit) {
             OutlinedTextField(
                 value = to,
                 onValueChange = { to = it },
-                label = { Text("To (phone number)") },
-                singleLine = true,
+                label = { Text("To (comma-separate for group MMS)") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
             )
             OutlinedTextField(
                 value = body,
                 onValueChange = { body = it },
                 label = { Text("Message") },
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                maxLines = 20,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
             )
             if (attachments.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    attachments.forEachIndexed { idx, att ->
-                        AssistChip(
-                            onClick = {
-                                attachments = attachments.toMutableList().also { it.removeAt(idx) }
-                            },
-                            label = { Text("${'$'}{att.name}  ✕") },
-                        )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(attachments) { att ->
+                        val idx = attachments.indexOf(att)
+                        AttachmentThumbnail(att) {
+                            attachments = attachments.toMutableList().also { it.removeAt(idx) }
+                        }
                     }
                 }
             }
@@ -130,6 +132,48 @@ fun ComposeScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(4.dp))
                 Text(it, style = MaterialTheme.typography.bodySmall)
             }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentThumbnail(att: PickedAttachment, onRemove: () -> Unit) {
+    val bmp = remember(att.uri) {
+        if (att.mime.startsWith("image/")) {
+            runCatching {
+                BitmapFactory.decodeByteArray(att.bytes, 0, att.bytes.size)?.asImageBitmap()
+            }.getOrNull()
+        } else null
+    }
+    Box(
+        Modifier
+            .size(80.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        if (bmp != null) {
+            Image(
+                bitmap = bmp,
+                contentDescription = att.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text(
+                att.name.take(12),
+                modifier = Modifier.align(Alignment.Center).padding(4.dp),
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier.align(Alignment.TopEnd).size(24.dp),
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Remove",
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }
