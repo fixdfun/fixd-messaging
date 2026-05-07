@@ -17,7 +17,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import app.fixd.messaging.data.ContactResolver
 import app.fixd.messaging.data.Message
 import app.fixd.messaging.data.ContactResolver
 import app.fixd.messaging.data.MessageRepository
