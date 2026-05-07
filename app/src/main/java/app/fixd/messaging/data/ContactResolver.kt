@@ -1,4 +1,4 @@
-package `fun`.fixd.messaging.data
+package app.fixd.messaging.data
 
 import android.content.Context
 import android.net.Uri
@@ -8,8 +8,8 @@ import android.provider.ContactsContract
 class ContactResolver(private val context: Context) {
     private val cache = mutableMapOf<String, String>()
 
-    fun displayName(address: String): String {
-        if (address.isBlank()) return address
+    fun displayName(address: String?): String {
+        if (address.isNullOrBlank()) return ""
         cache[address]?.let { return it }
         val uri = Uri.withAppendedPath(
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
