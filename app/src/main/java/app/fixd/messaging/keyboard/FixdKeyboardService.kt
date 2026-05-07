@@ -1,6 +1,7 @@
 package app.fixd.messaging.keyboard
 
 import android.content.Context
+import app.fixd.messaging.prefs.FixdPrefs
 import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.text.TextUtils
@@ -131,7 +132,7 @@ class FixdKeyboardService : InputMethodService(), SpellCheckerSession.SpellCheck
         controls.addKey("") { currentInputConnection?.deleteSurroundingText(2, 0) }
         controls.addKey("") { commit("\n") }
         parent.addView(controls)
-        showCategory(emojiCategories.first().second)
+        val __startIdx = runCatching { FixdPrefs(this).defaultEmojiCategory }.getOrDefault(0).coerceIn(0, emojiCategories.size - 1); showCategory(emojiCategories[__startIdx].second)
         return parent
     }
 

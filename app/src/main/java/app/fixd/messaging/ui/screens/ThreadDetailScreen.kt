@@ -10,6 +10,7 @@ import android.net.Uri
 import android.graphics.BitmapFactory
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -185,7 +186,20 @@ private fun AttachmentView(att: Attachment, fg: androidx.compose.ui.graphics.Col
                 }
             }.getOrNull()
         }
-        androidx.compose.foundation.layout.Box {
+        androidx.compose.foundation.layout.Box(
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxWidth()
+                .heightIn(max = 220.dp)
+                .clickable {
+                    val uri = android.net.Uri.parse("content://mms/part/${att.partId}")
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, att.contentType)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    runCatching { ctx.startActivity(android.content.Intent.createChooser(intent, "Open video")) }
+                }
+        ) {
             if (bmp != null) {
                 androidx.compose.foundation.Image(
                     bitmap = bmp,

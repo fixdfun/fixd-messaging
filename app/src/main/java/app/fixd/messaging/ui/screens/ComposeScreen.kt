@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import app.fixd.messaging.mms.MmsPart
 import app.fixd.messaging.mms.MmsSender
 import app.fixd.messaging.sms.SmsSender
+import app.fixd.messaging.prefs.FixdPrefs
 import kotlinx.coroutines.launch
 
 private data class PickedAttachment(val uri: Uri, val mime: String, val name: String, val bytes: ByteArray)
@@ -74,7 +75,8 @@ fun ComposeScreen(onBack: () -> Unit) {
         floatingActionButton = {
             FloatingActionButton(onClick = {
                 val recipients = to.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
-                val b = body
+                val sig = FixdPrefs(ctx).signature
+            val b = if (sig.isNotBlank() && !body.endsWith(sig)) (if (body.isBlank()) sig else body.trimEnd() + "\n\n" + sig) else body
                 if (recipients.isEmpty() || (b.isBlank() && attachments.isEmpty())) {
                     status = "Enter recipient and message"
                     return@FloatingActionButton
