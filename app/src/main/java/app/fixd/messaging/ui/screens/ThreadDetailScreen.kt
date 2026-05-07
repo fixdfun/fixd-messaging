@@ -145,6 +145,7 @@ private fun MessageBubble(msg: Message) {
 private fun AttachmentView(att: Attachment, fg: androidx.compose.ui.graphics.Color) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val isImage = att.contentType.startsWith("image/")
+    val isVideo = att.contentType.startsWith("video/")
     if (isImage) {
         val bmp = androidx.compose.runtime.remember(att.partId) {
             runCatching {
@@ -164,6 +165,44 @@ private fun AttachmentView(att: Attachment, fg: androidx.compose.ui.graphics.Col
             )
         } else {
             androidx.compose.material3.Text("[image]", color = fg)
+        }
+    } else if (isVideo) {
+        val bmp = androidx.compose.runtime.remember(att.partId) {
+            runCatching {
+                val tmp = java.io.File(ctx.cacheDir, "vthumb_${att.partId}.bin")
+                if (!tmp.exists()) {
+                    ctx.contentResolver.openInputStream(android.net.Uri.parse("content://mms/part/${att.partId}"))?.use { input ->
+                        tmp.outputStream().use { out -> input.copyTo(out) }
+                    }
+                }
+                val mmr = android.media.MediaMetadataRetriever()
+                try {
+                    mmr.setDataSource(tmp.absolutePath)
+                    mmr.getFrameAtTime(0)?.asImageBitmap()
+                } finally {
+                    runCatching { mmr.release() }
+                }
+            }.getOrNull()
+        }
+        androidx.compose.foundation.layout.Box {
+            if (bmp != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = bmp,
+                    contentDescription = att.filename,
+                    modifier = androidx.compose.ui.Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                )
+                androidx.compose.material3.Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Default.PlayArrow,
+                    contentDescription = "video",
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.Center).size(48.dp),
+                )
+            } else {
+                androidx.compose.material3.Text("[video]", color = fg)
+            }
         }
     } else if (!att.text.isNullOrEmpty()) {
         androidx.compose.material3.Text(att.text!!, color = fg)

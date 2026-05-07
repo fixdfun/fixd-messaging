@@ -2,6 +2,8 @@ package app.fixd.messaging.ui.screens
 
 import android.content.Intent
 import android.graphics.BitmapFactory
+import androidx.compose.material.icons.filled.PlayArrow
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -138,12 +140,27 @@ fun ComposeScreen(onBack: () -> Unit) {
 
 @Composable
 private fun AttachmentThumbnail(att: PickedAttachment, onRemove: () -> Unit) {
-    val bmp = remember(att.uri) {
-        if (att.mime.startsWith("image/")) {
-            runCatching {
-                BitmapFactory.decodeByteArray(att.bytes, 0, att.bytes.size)?.asImageBitmap()
-            }.getOrNull()
-        } else null
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val bmp = remember(att.uri, att.mime) {
+        runCatching {
+            when {
+                att.mime.startsWith("image/") ->
+                    BitmapFactory.decodeByteArray(att.bytes, 0, att.bytes.size)?.asImageBitmap()
+                att.mime.startsWith("video/") -> {
+                    val tmp = java.io.File(ctx.cacheDir, "thumb_${att.uri.hashCode()}.bin").apply {
+                        if (!exists()) writeBytes(att.bytes)
+                    }
+                    val mmr = android.media.MediaMetadataRetriever()
+                    try {
+                        mmr.setDataSource(tmp.absolutePath)
+                        mmr.getFrameAtTime(0)?.asImageBitmap()
+                    } finally {
+                        runCatching { mmr.release() }
+                    }
+                }
+                else -> null
+            }
+        }.getOrNull()
     }
     Box(
         Modifier
@@ -158,6 +175,14 @@ private fun AttachmentThumbnail(att: PickedAttachment, onRemove: () -> Unit) {
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
+            if (att.mime.startsWith("video/")) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "video",
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.align(Alignment.Center).size(32.dp),
+                )
+            }
         } else {
             Text(
                 att.name.take(12),
@@ -169,11 +194,7 @@ private fun AttachmentThumbnail(att: PickedAttachment, onRemove: () -> Unit) {
             onClick = onRemove,
             modifier = Modifier.align(Alignment.TopEnd).size(24.dp),
         ) {
-            Icon(
-                Icons.Default.Close,
-                contentDescription = "Remove",
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
+            Icon(Icons.Default.Close, contentDescription = "remove")
         }
     }
 }
