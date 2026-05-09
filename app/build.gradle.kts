@@ -58,6 +58,8 @@ android {
     packaging {
         resources {
             excludes += setOf(
+                "lib/x86/libsignal_jni.so",
+                "lib/x86_64/libsignal_jni.so",
                 "/META-INF/{AL2.0,LGPL2.1}",
                 "/META-INF/DEPENDENCIES",
                 "/META-INF/LICENSE*",
@@ -97,6 +99,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
+    implementation("org.signal:libsignal-android:0.55.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

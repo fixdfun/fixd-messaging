@@ -53,3 +53,8 @@
     public static **[] values();
     public static ** valueOf(java.lang.String);
 }
+
+# libsignal-android  keep all JNI-bridged classes
+-keep class org.signal.libsignal.** { *; }
+-keep class org.whispersystems.** { *; }
+-dontwarn org.signal.libsignal.**
