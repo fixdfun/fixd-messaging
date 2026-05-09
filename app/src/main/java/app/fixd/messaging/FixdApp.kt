@@ -6,12 +6,16 @@ import android.app.NotificationManager
 import android.os.Build
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
+import app.fixd.messaging.crypto.FixdSignal
 
 class FixdApp : Application() {
+
     override fun onCreate() {
         super.onCreate()
         EmojiCompat.init(BundledEmojiCompatConfig(this))
         createNotificationChannels()
+        // Initialise Signal Protocol stores (generates identity key + prekeys on first run)
+        FixdSignal(this).init()
     }
 
     private fun createNotificationChannels() {
@@ -32,7 +36,7 @@ class FixdApp : Application() {
     }
 
     companion object {
-        const val CHANNEL_INCOMING = "fixd.incoming"
+        const val CHANNEL_INCOMING    = "fixd.incoming"
         const val CHANNEL_SEND_STATUS = "fixd.send"
     }
 }
