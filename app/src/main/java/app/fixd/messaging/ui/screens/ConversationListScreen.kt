@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -41,7 +42,8 @@ fun ConversationListScreen(
     onRequestPermissions: () -> Unit,
     onOpenThread: (Long) -> Unit,
     onCompose: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onNewGroup: () -> Unit = {}
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -105,6 +107,7 @@ fun ConversationListScreen(
         },
         floatingActionButton = {
             if (isDefaultSmsApp) {
+                SmallFloatingActionButton(onClick = onNewGroup, modifier = Modifier.padding(bottom = 8.dp)) { Icon(Icons.Filled.Group, "New Group") }
                 ExtendedFloatingActionButton(onClick = onCompose, icon = { Icon(Icons.Default.Add, null) }, text = { Text("New") })
             }
         }
